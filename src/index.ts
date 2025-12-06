@@ -537,12 +537,15 @@ Args:
   - statuses (string[], optional): Filter by status names. MUST be an array, e.g., ["to do", "in progress"]
   - assignees (number[], optional): Filter by assignee IDs. MUST be an array, e.g., [123, 456]
   - limit (number): Maximum results (1-100, default: 20)
-  - offset (number): Pagination offset (default: 0)
+  - offset (number): Pagination offset (default: 0). MUST be a multiple of limit (0, 20, 40, 60, etc.)
   - response_format ('markdown' | 'json'): Output format (default: 'markdown')
   - response_mode ('full' | 'compact' | 'summary'): Detail level (default: 'full')
     * 'full': Complete task details with descriptions
     * 'compact': Essential fields only (id, name, status, assignees) - use for large result sets
     * 'summary': Statistical overview by status/assignee without individual task details
+
+Pagination:
+  Use the next_offset value from the response to get the next page. Offset must be a multiple of limit.
 
 Returns:
   For JSON format:
@@ -586,6 +589,16 @@ Error Handling:
     try {
       const limit = params.limit ?? DEFAULT_LIMIT;
       const offset = params.offset ?? 0;
+
+      // Validate pagination alignment
+      if (offset % limit !== 0) {
+        return {
+          content: [{
+            type: "text",
+            text: `Error: offset (${offset}) must be a multiple of limit (${limit}) for proper pagination. Use the next_offset value from previous responses, or ensure offset is divisible by limit.`
+          }]
+        };
+      }
 
       const queryParams: any = {
         archived: params.archived,
@@ -990,12 +1003,15 @@ Args:
   - date_created_gt (number, optional): Created after (Unix timestamp)
   - date_updated_gt (number, optional): Updated after (Unix timestamp)
   - limit (number): Maximum results (1-100, default: 20)
-  - offset (number): Pagination offset (default: 0)
+  - offset (number): Pagination offset (default: 0). MUST be a multiple of limit (0, 20, 40, 60, etc.)
   - response_format ('markdown' | 'json'): Output format (default: 'markdown')
   - response_mode ('full' | 'compact' | 'summary'): Detail level (default: 'full')
     * 'full': Complete task details with descriptions
     * 'compact': Essential fields only (id, name, status, assignees) - use for large result sets
     * 'summary': Statistical overview by status/assignee without individual task details
+
+Pagination:
+  Use the next_offset value from the response to get the next page. Offset must be a multiple of limit.
 
 Returns:
   Matching tasks with pagination information.
@@ -1032,6 +1048,16 @@ Error Handling:
     try {
       const limit = params.limit ?? DEFAULT_LIMIT;
       const offset = params.offset ?? 0;
+
+      // Validate pagination alignment
+      if (offset % limit !== 0) {
+        return {
+          content: [{
+            type: "text",
+            text: `Error: offset (${offset}) must be a multiple of limit (${limit}) for proper pagination. Use the next_offset value from previous responses, or ensure offset is divisible by limit.`
+          }]
+        };
+      }
 
       const queryParams: any = {
         page: Math.floor(offset / limit)
