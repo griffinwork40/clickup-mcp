@@ -1,11 +1,22 @@
 {
-  "name": "clickup-mcp-server",
+  "name": "@griffinwork40/clickup-mcp-server",
   "version": "1.1.0",
   "description": "MCP server for ClickUp API integration - manage tasks, projects, and workflows",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
     "clickup-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "author": "griffinwork40",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/griffinwork40/clickup-mcp.git"
   },
   "scripts": {
     "start": "node dist/index.js",
