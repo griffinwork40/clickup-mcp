@@ -85,11 +85,13 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 - `clickup_get_list_details` - Get list details with statuses and custom fields
 
 ### Task Tools
-- `clickup_get_tasks` - Get tasks in a list (paginated)
+- `clickup_get_tasks` - Get tasks in a list (paginated, with status filtering)
 - `clickup_get_task` - Get detailed task information
 - `clickup_create_task` - Create a new task
 - `clickup_update_task` - Update task properties
 - `clickup_delete_task` - Delete a task
+- `clickup_count_tasks_by_status` - Count tasks by status (handles pagination internally)
+- `clickup_export_tasks_to_csv` - Export tasks to CSV format (handles pagination, filtering, and custom fields)
 
 ### Search & Comments
 - `clickup_search_tasks` - Search for tasks across a team
@@ -101,6 +103,23 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 - `clickup_start_time_entry` - Start time tracking
 - `clickup_stop_time_entry` - Stop time tracking
 - `clickup_get_time_entries` - Get time tracking entries
+
+## Status Filtering
+
+Status filtering has been improved with automatic client-side fallback:
+- `clickup_get_tasks` and `clickup_search_tasks` now automatically fall back to client-side filtering if API filtering fails
+- `clickup_count_tasks_by_status` is a dedicated tool optimized for counting tasks by status
+- `clickup_export_tasks_to_csv` exports tasks to CSV with automatic status filtering and custom field extraction
+- All tools handle pagination correctly with status filtering
+
+## CSV Export
+
+The `clickup_export_tasks_to_csv` tool makes it easy to export tasks:
+- Automatically handles pagination for large lists
+- Fetches detailed task information to include custom fields
+- Supports status filtering
+- Returns CSV content that can be saved to a file
+- Includes all standard fields (ID, name, status, dates, etc.) and custom fields
 
 ## Response Formats
 
