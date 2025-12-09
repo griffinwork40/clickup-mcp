@@ -5,6 +5,8 @@
 import { describe, it, expect, beforeAll } from '@jest/globals';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DEFAULT_LIMIT } from "./constants.js";
+import { normalizePhoneToE164, extractCustomFieldValue } from "./utils.js";
+import type { ClickUpCustomField } from "./types.js";
 
 // Mock environment variable
 process.env.CLICKUP_API_TOKEN = "pk_test_token_for_testing";
@@ -220,5 +222,137 @@ describe('Error Handling', () => {
     expect(errorMessage).toContain('multiple of limit');
     expect(errorMessage).toContain('next_offset');
     expect(errorMessage).toContain('divisible by limit');
+  });
+});
+
+describe('Phone Number Normalization', () => {
+  describe('normalizePhoneToE164', () => {
+    it('should normalize phone numbers with spaces', () => {
+      expect(normalizePhoneToE164('+1 412 481 2210')).toBe('+14124812210');
+      expect(normalizePhoneToE164('+1 302 530 6667')).toBe('+13025306667');
+      expect(normalizePhoneToE164('1 412 481 2210')).toBe('+14124812210');
+    });
+
+    it('should normalize phone numbers with dots', () => {
+      expect(normalizePhoneToE164('817.527.9708')).toBe('+18175279708');
+      expect(normalizePhoneToE164('404.931.7899')).toBe('+14049317899');
+    });
+
+    it('should normalize phone numbers with parentheses and dashes', () => {
+      expect(normalizePhoneToE164('(623) 258-3673')).toBe('+16232583673');
+      expect(normalizePhoneToE164('518-434-8128')).toBe('+15184348128');
+    });
+
+    it('should remove extensions', () => {
+      expect(normalizePhoneToE164('518-434-8128 x206')).toBe('+15184348128');
+      expect(normalizePhoneToE164('4124812210 ext 123')).toBe('+14124812210');
+      expect(normalizePhoneToE164('3025306667 extension 456')).toBe('+13025306667');
+      expect(normalizePhoneToE164('8175279708 X789')).toBe('+18175279708');
+    });
+
+    it('should add country code for 10-digit numbers', () => {
+      expect(normalizePhoneToE164('4124812210')).toBe('+14124812210');
+      expect(normalizePhoneToE164('8175279708')).toBe('+18175279708');
+    });
+
+    it('should preserve existing country code', () => {
+      expect(normalizePhoneToE164('+14124812210')).toBe('+14124812210');
+      expect(normalizePhoneToE164('14124812210')).toBe('+14124812210');
+    });
+
+    it('should handle international numbers', () => {
+      expect(normalizePhoneToE164('+44.1922.722723')).toBe('+441922722723');
+      expect(normalizePhoneToE164('+44 1922 722723')).toBe('+441922722723');
+    });
+
+    it('should return empty string for invalid numbers', () => {
+      expect(normalizePhoneToE164('')).toBe('');
+      expect(normalizePhoneToE164(null)).toBe('');
+      expect(normalizePhoneToE164(undefined)).toBe('');
+      expect(normalizePhoneToE164('   ')).toBe('');
+      expect(normalizePhoneToE164('0123456789')).toBe(''); // Starts with 0
+      expect(normalizePhoneToE164('123')).toBe(''); // Too short
+      expect(normalizePhoneToE164('12345678901234567')).toBe(''); // Too long
+    });
+
+    it('should handle edge cases', () => {
+      expect(normalizePhoneToE164('+1-412-481-2210')).toBe('+14124812210');
+      expect(normalizePhoneToE164('(412) 481-2210')).toBe('+14124812210');
+      expect(normalizePhoneToE164('412.481.2210')).toBe('+14124812210');
+    });
+  });
+
+  describe('extractCustomFieldValue with phone normalization', () => {
+    it('should normalize phone fields by type', () => {
+      const phoneField: ClickUpCustomField = {
+        id: '1',
+        name: 'Phone',
+        type: 'phone',
+        value: '+1 412 481 2210'
+      };
+      expect(extractCustomFieldValue(phoneField)).toBe('+14124812210');
+
+      const phoneNumberField: ClickUpCustomField = {
+        id: '2',
+        name: 'Phone Number',
+        type: 'phone_number',
+        value: '817.527.9708'
+      };
+      expect(extractCustomFieldValue(phoneNumberField)).toBe('+18175279708');
+    });
+
+    it('should normalize phone fields by name (text field)', () => {
+      const textPhoneField: ClickUpCustomField = {
+        id: '3',
+        name: 'Personal Phone',
+        type: 'text',
+        value: '(623) 258-3673'
+      };
+      expect(extractCustomFieldValue(textPhoneField)).toBe('+16232583673');
+
+      const shortTextPhoneField: ClickUpCustomField = {
+        id: '4',
+        name: 'Biz Phone number',
+        type: 'short_text',
+        value: '518-434-8128 x206'
+      };
+      expect(extractCustomFieldValue(shortTextPhoneField)).toBe('+15184348128');
+    });
+
+    it('should not normalize non-phone fields', () => {
+      const emailField: ClickUpCustomField = {
+        id: '5',
+        name: 'Email',
+        type: 'email',
+        value: 'test@example.com'
+      };
+      expect(extractCustomFieldValue(emailField)).toBe('test@example.com');
+
+      const textField: ClickUpCustomField = {
+        id: '6',
+        name: 'Company Name',
+        type: 'text',
+        value: 'Acme Corp'
+      };
+      expect(extractCustomFieldValue(textField)).toBe('Acme Corp');
+    });
+
+    it('should handle empty phone values', () => {
+      const emptyPhoneField: ClickUpCustomField = {
+        id: '7',
+        name: 'Phone',
+        type: 'phone',
+        value: ''
+      };
+      expect(extractCustomFieldValue(emptyPhoneField)).toBe('');
+
+      const nullPhoneField: ClickUpCustomField = {
+        id: '8',
+        name: 'Phone',
+        type: 'phone',
+        value: null
+      };
+      expect(extractCustomFieldValue(nullPhoneField)).toBe('');
+    });
   });
 });

@@ -539,16 +539,93 @@ export function escapeCSV(value: any): string {
 }
 
 /**
+ * Normalize phone number to E.164 format
+ * E.164 format: ^\+?[1-9]\d{1,14}$
+ * Rules:
+ * - Optional + at the start
+ * - Must start with digit 1-9 (not 0)
+ * - Followed by 1-14 digits only
+ * - NO spaces, dashes, parentheses, dots, or other characters
+ * - NO extensions
+ */
+export function normalizePhoneToE164(phone: string | null | undefined): string {
+  if (!phone) return '';
+  
+  let normalized = String(phone).trim();
+  if (!normalized) return '';
+  
+  // Remove extensions (x206, ext 123, extension 456, etc.)
+  // Match: x, ext, extension followed by optional space and digits
+  normalized = normalized.replace(/\s*(?:x|ext|extension)\s*\d+/i, '');
+  
+  // Check if it starts with + (preserve it)
+  const hasPlus = normalized.startsWith('+');
+  if (hasPlus) {
+    normalized = normalized.substring(1);
+  }
+  
+  // Remove all non-digit characters
+  normalized = normalized.replace(/\D/g, '');
+  
+  // If empty after cleaning, return empty
+  if (!normalized) return '';
+  
+  // If number starts with 0, it's invalid for E.164 (must start with 1-9)
+  if (normalized.startsWith('0')) {
+    return '';
+  }
+  
+  // Check if it already has a country code (starts with 1-9 and has 10+ digits)
+  // If it's 10 digits and starts with 1, assume it's US/Canada with country code
+  // If it's 10 digits and doesn't start with 1, assume it's missing country code
+  // If it's 11 digits and starts with 1, it already has country code
+  // If it's more than 11 digits, assume it already has country code
+  
+  if (normalized.length === 10) {
+    // 10 digits without country code - add +1 for US/Canada
+    normalized = '1' + normalized;
+  } else if (normalized.length === 11 && normalized.startsWith('1')) {
+    // Already has US/Canada country code
+    // Keep as is
+  } else if (normalized.length < 10) {
+    // Too short to be a valid phone number
+    return '';
+  } else if (normalized.length > 15) {
+    // Too long for E.164 (max 15 digits after country code)
+    return '';
+  }
+  
+  // Add + prefix
+  normalized = '+' + normalized;
+  
+  // Validate E.164 format: ^\+?[1-9]\d{1,14}$
+  // We already have the +, so check: [1-9]\d{1,14}
+  const e164Regex = /^\+[1-9]\d{1,14}$/;
+  if (!e164Regex.test(normalized)) {
+    return '';
+  }
+  
+  return normalized;
+}
+
+/**
  * Extract value from a custom field based on its type
  */
 export function extractCustomFieldValue(field: ClickUpCustomField): string {
   if (!field || field.value === null || field.value === undefined || field.value === '') return '';
   
+  // Check if this is a phone number field (by type or name)
+  const isPhoneField = field.type === 'phone' || 
+                       field.type === 'phone_number' ||
+                       (typeof field.name === 'string' && /phone/i.test(field.name));
+  
   // Handle different field types
-  if (field.type === 'email' || field.type === 'phone' || field.type === 'url' || field.type === 'text' || field.type === 'short_text') {
-    return String(field.value).trim();
-  } else if (field.type === 'phone_number') {
-    return String(field.value).trim();
+  if (field.type === 'email' || field.type === 'url' || field.type === 'text' || field.type === 'short_text') {
+    const value = String(field.value).trim();
+    // Normalize if it's a phone field
+    return isPhoneField ? normalizePhoneToE164(value) : value;
+  } else if (field.type === 'phone' || field.type === 'phone_number') {
+    return normalizePhoneToE164(field.value);
   } else if (field.type === 'number' || field.type === 'currency') {
     return String(field.value);
   } else if (field.type === 'date') {
@@ -562,7 +639,10 @@ export function extractCustomFieldValue(field: ClickUpCustomField): string {
   } else if (field.type === 'checkbox') {
     return field.value ? 'Yes' : 'No';
   }
-  return String(field.value || '').trim();
+  
+  // Default: return trimmed string, normalize if it's a phone field
+  const value = String(field.value || '').trim();
+  return isPhoneField ? normalizePhoneToE164(value) : value;
 }
 
 /**
