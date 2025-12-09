@@ -3,7 +3,7 @@
  */
 
 import axios, { AxiosError } from "axios";
-import { API_BASE_URL, CHARACTER_LIMIT, DEFAULT_TIMEOUT, ResponseFormat, ResponseMode } from "./constants.js";
+import { API_BASE_URL, CHARACTER_LIMIT, DEFAULT_TIMEOUT, MAX_LIMIT, ResponseFormat, ResponseMode } from "./constants.js";
 import type {
   ClickUpTask,
   ClickUpList,
@@ -12,7 +12,8 @@ import type {
   ClickUpComment,
   ClickUpTimeEntry,
   PaginationInfo,
-  TruncationInfo
+  TruncationInfo,
+  ClickUpCustomField
 } from "./types.js";
 
 /**
@@ -422,4 +423,325 @@ export function formatTruncationInfo(truncation: TruncationInfo | null): string 
   if (!truncation) return "";
 
   return `\n\n---\n⚠️ ${truncation.truncation_message}`;
+}
+
+/**
+ * Filter tasks by status names (client-side filtering)
+ */
+export function filterTasksByStatus(tasks: ClickUpTask[], statuses: string[]): ClickUpTask[] {
+  if (!statuses || statuses.length === 0) {
+    return tasks;
+  }
+
+  return tasks.filter(task => {
+    const taskStatus = task.status?.status;
+    return taskStatus && statuses.includes(taskStatus);
+  });
+}
+
+/**
+ * Options for counting tasks by status
+ */
+export interface CountTasksOptions {
+  archived?: boolean;
+  include_closed?: boolean;
+  statuses?: string[];
+}
+
+/**
+ * Result of counting tasks by status
+ */
+export interface CountTasksResult {
+  total: number;
+  by_status: Record<string, number>;
+}
+
+/**
+ * Count tasks in a list by status, handling pagination internally
+ */
+export async function countTasksByStatus(
+  listId: string,
+  options: CountTasksOptions = {}
+): Promise<CountTasksResult> {
+  const { archived = false, include_closed = false, statuses } = options;
+  const limit = 100; // Use max limit for efficiency
+  let offset = 0;
+  let allTasks: ClickUpTask[] = [];
+  let hasMore = true;
+
+  // Fetch all tasks with pagination
+  while (hasMore) {
+    const queryParams: any = {
+      archived,
+      include_closed,
+      page: Math.floor(offset / limit)
+    };
+
+    try {
+      const data = await makeApiRequest<{ tasks: ClickUpTask[] }>(
+        `list/${listId}/task`,
+        "GET",
+        undefined,
+        queryParams
+      );
+
+      const tasks = data.tasks || [];
+      allTasks.push(...tasks);
+
+      hasMore = tasks.length === limit;
+      offset += limit;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Filter by status if specified
+  let filteredTasks = allTasks;
+  if (statuses && statuses.length > 0) {
+    filteredTasks = filterTasksByStatus(allTasks, statuses);
+  }
+
+  // Count by status
+  const byStatus: Record<string, number> = {};
+  for (const task of filteredTasks) {
+    const status = task.status?.status || "Unknown";
+    byStatus[status] = (byStatus[status] || 0) + 1;
+  }
+
+  return {
+    total: filteredTasks.length,
+    by_status: byStatus
+  };
+}
+
+/**
+ * Options for exporting tasks to CSV
+ */
+export interface ExportCSVOptions {
+  archived?: boolean;
+  include_closed?: boolean;
+  statuses?: string[];
+  custom_fields?: string[];
+  include_standard_fields?: boolean;
+}
+
+/**
+ * Escape CSV fields to handle commas, quotes, and newlines
+ */
+export function escapeCSV(value: any): string {
+  if (value === null || value === undefined) return '';
+  const stringValue = String(value);
+  // If contains comma, quote, or newline, wrap in quotes and escape quotes
+  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  return stringValue;
+}
+
+/**
+ * Extract value from a custom field based on its type
+ */
+export function extractCustomFieldValue(field: ClickUpCustomField): string {
+  if (!field || field.value === null || field.value === undefined || field.value === '') return '';
+  
+  // Handle different field types
+  if (field.type === 'email' || field.type === 'phone' || field.type === 'url' || field.type === 'text' || field.type === 'short_text') {
+    return String(field.value).trim();
+  } else if (field.type === 'phone_number') {
+    return String(field.value).trim();
+  } else if (field.type === 'number' || field.type === 'currency') {
+    return String(field.value);
+  } else if (field.type === 'date') {
+    return new Date(parseInt(field.value)).toISOString().split('T')[0];
+  } else if (field.type === 'dropdown') {
+    return field.value?.label || field.value?.name || String(field.value || '');
+  } else if (field.type === 'labels') {
+    return Array.isArray(field.value) ? field.value.map((v: any) => v.label || v.name || v).join('; ') : '';
+  } else if (field.type === 'checklist') {
+    return Array.isArray(field.value) ? field.value.map((item: any) => item.name).join('; ') : '';
+  } else if (field.type === 'checkbox') {
+    return field.value ? 'Yes' : 'No';
+  }
+  return String(field.value || '').trim();
+}
+
+/**
+ * Get custom field value by name (prefers field with value if multiple exist)
+ */
+export function getCustomField(task: ClickUpTask, fieldName: string, preferredType?: string): string {
+  if (!task.custom_fields) return '';
+  
+  // Find all fields with matching name
+  const matchingFields = task.custom_fields.filter(f => f.name === fieldName);
+  if (matchingFields.length === 0) return '';
+  
+  // If preferred type specified, try that first
+  if (preferredType) {
+    const typedField = matchingFields.find(f => f.type === preferredType && f.value);
+    if (typedField) {
+      return extractCustomFieldValue(typedField);
+    }
+  }
+  
+  // Prefer field with a value
+  const fieldWithValue = matchingFields.find(f => f.value !== null && f.value !== undefined && f.value !== '');
+  const field = fieldWithValue || matchingFields[0];
+  
+  return extractCustomFieldValue(field);
+}
+
+/**
+ * Convert task to CSV row array
+ */
+export function taskToCSVRow(task: ClickUpTask, fieldOrder: string[]): string[] {
+  const row: string[] = [];
+  
+  for (const fieldName of fieldOrder) {
+    let value: string = '';
+    
+    // Standard fields
+    if (fieldName === 'Task ID') {
+      value = task.id;
+    } else if (fieldName === 'Name') {
+      value = task.name;
+    } else if (fieldName === 'Status') {
+      value = task.status?.status || '';
+    } else if (fieldName === 'Date Created') {
+      value = task.date_created ? new Date(parseInt(task.date_created)).toISOString() : '';
+    } else if (fieldName === 'Date Updated') {
+      value = task.date_updated ? new Date(parseInt(task.date_updated)).toISOString() : '';
+    } else if (fieldName === 'URL') {
+      value = task.url || '';
+    } else if (fieldName === 'Assignees') {
+      value = task.assignees?.map(a => a.username || a.email).join('; ') || '';
+    } else if (fieldName === 'Creator') {
+      value = task.creator?.username || task.creator?.email || '';
+    } else if (fieldName === 'Due Date') {
+      value = task.due_date ? new Date(parseInt(task.due_date)).toISOString() : '';
+    } else if (fieldName === 'Priority') {
+      value = task.priority?.priority || '';
+    } else if (fieldName === 'Description') {
+      value = task.description || task.text_content || '';
+    } else if (fieldName === 'Tags') {
+      value = task.tags?.map(t => t.name).join('; ') || '';
+    } else {
+      // Custom field
+      value = getCustomField(task, fieldName);
+    }
+    
+    row.push(escapeCSV(value));
+  }
+  
+  return row;
+}
+
+/**
+ * Export tasks to CSV format
+ */
+export async function exportTasksToCSV(
+  listId: string,
+  options: ExportCSVOptions = {}
+): Promise<string> {
+  const {
+    archived = false,
+    include_closed = false,
+    statuses,
+    custom_fields,
+    include_standard_fields = true
+  } = options;
+
+  const limit = MAX_LIMIT;
+  let offset = 0;
+  let allTasks: ClickUpTask[] = [];
+  let hasMore = true;
+
+  // Step 1: Fetch all tasks with pagination
+  while (hasMore) {
+    const queryParams: any = {
+      archived,
+      include_closed,
+      page: Math.floor(offset / limit)
+    };
+
+    try {
+      const data = await makeApiRequest<{ tasks: ClickUpTask[] }>(
+        `list/${listId}/task`,
+        "GET",
+        undefined,
+        queryParams
+      );
+
+      const tasks = data.tasks || [];
+      allTasks.push(...tasks);
+
+      hasMore = tasks.length === limit;
+      offset += limit;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Step 2: Filter by status if specified
+  if (statuses && statuses.length > 0) {
+    allTasks = filterTasksByStatus(allTasks, statuses);
+  }
+
+  if (allTasks.length === 0) {
+    return ''; // Return empty CSV if no tasks
+  }
+
+  // Note: The list endpoint already returns custom fields with values,
+  // so we don't need to fetch individual task details!
+
+  // Step 3: Build field order and headers
+  const standardFields = [
+    'Task ID',
+    'Name',
+    'Status',
+    'Date Created',
+    'Date Updated',
+    'URL',
+    'Assignees',
+    'Creator',
+    'Due Date',
+    'Priority',
+    'Description',
+    'Tags'
+  ];
+
+  // Collect all custom field names from tasks
+  const allCustomFieldNames = new Set<string>();
+  for (const task of allTasks) {
+    if (task.custom_fields) {
+      for (const field of task.custom_fields) {
+        allCustomFieldNames.add(field.name);
+      }
+    }
+  }
+
+  // Determine which custom fields to include
+  const customFieldsToInclude = custom_fields && custom_fields.length > 0
+    ? custom_fields.filter(name => allCustomFieldNames.has(name))
+    : Array.from(allCustomFieldNames);
+
+  // Build field order
+  const fieldOrder: string[] = [];
+  if (include_standard_fields) {
+    fieldOrder.push(...standardFields);
+  }
+  fieldOrder.push(...customFieldsToInclude);
+
+  // Step 4: Build CSV
+  const csvRows: string[] = [];
+  
+  // Headers
+  csvRows.push(fieldOrder.map(escapeCSV).join(','));
+  
+  // Data rows
+  for (const task of allTasks) {
+    const row = taskToCSVRow(task, fieldOrder);
+    csvRows.push(row.join(','));
+  }
+
+  return csvRows.join('\n');
 }
