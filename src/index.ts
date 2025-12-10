@@ -618,7 +618,9 @@ Error Handling:
       }
 
       if (params.assignees && params.assignees.length > 0) {
-        queryParams.assignees = JSON.stringify(params.assignees);
+        // ClickUp expects assignees[]=123&assignees[]=456 format
+        // Axios automatically serializes arrays this way
+        queryParams.assignees = params.assignees;
       }
 
       try {
@@ -647,7 +649,9 @@ Error Handling:
             };
             
             if (params.assignees && params.assignees.length > 0) {
-              fetchParams.assignees = JSON.stringify(params.assignees);
+              // ClickUp expects assignees[]=123&assignees[]=456 format
+              // Axios automatically serializes arrays this way
+              fetchParams.assignees = params.assignees;
             }
             
             const fetchData = await makeApiRequest<{ tasks: ClickUpTask[] }>(
@@ -1134,7 +1138,7 @@ Error Handling:
       if (params.statuses && params.statuses.length > 0) {
         queryParams.statuses = JSON.stringify(params.statuses);
       }
-      if (params.assignees) queryParams.assignees = JSON.stringify(params.assignees);
+      if (params.assignees) queryParams.assignees = params.assignees; // Axios handles array serialization
       if (params.tags) queryParams.tags = JSON.stringify(params.tags);
       if (params.date_created_gt) queryParams.date_created_gt = params.date_created_gt;
       if (params.date_updated_gt) queryParams.date_updated_gt = params.date_updated_gt;
@@ -1163,7 +1167,7 @@ Error Handling:
             };
             
             if (params.query) fetchParams.query = params.query;
-            if (params.assignees) fetchParams.assignees = JSON.stringify(params.assignees);
+            if (params.assignees) fetchParams.assignees = params.assignees; // Axios handles array serialization
             if (params.tags) fetchParams.tags = JSON.stringify(params.tags);
             if (params.date_created_gt) fetchParams.date_created_gt = params.date_created_gt;
             if (params.date_updated_gt) fetchParams.date_updated_gt = params.date_updated_gt;
@@ -1369,6 +1373,7 @@ Args:
   - include_closed (boolean): Include closed tasks (default: false)
   - custom_fields (string[], optional): Specific custom field names to include. If omitted, includes all custom fields found
   - include_standard_fields (boolean): Include standard fields like ID, name, status, etc. (default: true)
+  - add_phone_number_column (boolean): Automatically create a combined 'phone_number' column from phone fields (for ElevenLabs compatibility) (default: false)
 
 Returns:
   CSV content as text (can be saved to file by client). Includes headers as first row.
@@ -1387,7 +1392,8 @@ Error Handling:
       archived: z.boolean().default(false).describe("Include archived tasks"),
       include_closed: z.boolean().default(false).describe("Include closed tasks"),
       custom_fields: z.array(z.string()).optional().describe("Specific custom field names to include. If omitted, includes all custom fields found"),
-      include_standard_fields: z.boolean().default(true).describe("Include standard fields like ID, name, status, etc.")
+      include_standard_fields: z.boolean().default(true).describe("Include standard fields like ID, name, status, etc."),
+      add_phone_number_column: z.boolean().default(false).describe("Automatically create a combined 'phone_number' column from phone fields (for ElevenLabs compatibility)")
     }).strict(),
     annotations: {
       readOnlyHint: true,
@@ -1403,7 +1409,8 @@ Error Handling:
         include_closed: params.include_closed,
         statuses: params.statuses,
         custom_fields: params.custom_fields,
-        include_standard_fields: params.include_standard_fields
+        include_standard_fields: params.include_standard_fields,
+        add_phone_number_column: params.add_phone_number_column
       });
 
       if (csvContent === '') {

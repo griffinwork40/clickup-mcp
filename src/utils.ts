@@ -366,9 +366,82 @@ export function generateTaskSummary(tasks: ClickUpTask[]): string {
 }
 
 /**
- * Truncate response if it exceeds character limit with smart boundary detection
+ * Truncate JSON response by removing items from arrays
  */
-export function truncateResponse(
+function truncateJsonResponse(
+  content: string,
+  itemCount: number,
+  itemType: string = "items"
+): { content: string; truncation: TruncationInfo | null } {
+  try {
+    const data = JSON.parse(content);
+    
+    // Find the main array (tasks, conversations, etc.)
+    const arrayKey = Object.keys(data).find(key => Array.isArray(data[key]));
+    if (!arrayKey || !Array.isArray(data[arrayKey])) {
+      // If no array found, fall back to string truncation
+      throw new Error('No array found in JSON');
+    }
+    
+    const items = data[arrayKey];
+    let keptItems = items.length;
+    
+    // Remove items one by one until we're under the limit
+    while (JSON.stringify(data).length > CHARACTER_LIMIT && data[arrayKey].length > 1) {
+      data[arrayKey].pop();
+      keptItems = data[arrayKey].length;
+    }
+    
+    const finalContent = JSON.stringify(data, null, 2);
+    
+    // Check if even a single item exceeds the limit
+    if (finalContent.length > CHARACTER_LIMIT) {
+      // Single item is too large - truncate the item's description/content fields
+      if (data[arrayKey].length === 1 && typeof data[arrayKey][0] === 'object') {
+        const item = data[arrayKey][0];
+        // Truncate large text fields
+        for (const key of Object.keys(item)) {
+          if (typeof item[key] === 'string' && item[key].length > 10000) {
+            item[key] = item[key].substring(0, 10000) + '... [truncated]';
+          }
+        }
+        // Retry serialization
+        const compactContent = JSON.stringify(data, null, 2);
+        if (compactContent.length <= CHARACTER_LIMIT) {
+          const truncation: TruncationInfo = {
+            truncated: true,
+            original_count: itemCount,
+            returned_count: 1,
+            truncation_message: `Large ${itemType} fields were truncated to fit size limits (${CHARACTER_LIMIT.toLocaleString()} chars).`
+          };
+          return { content: compactContent, truncation };
+        }
+      }
+      // Still too large - fall back to markdown truncation
+      return truncateMarkdownResponse(content, itemCount, itemType);
+    }
+    
+    if (keptItems < items.length) {
+      const truncation: TruncationInfo = {
+        truncated: true,
+        original_count: items.length,
+        returned_count: keptItems,
+        truncation_message: `Response truncated from ${items.length} to ${keptItems} ${itemType} due to size limits (${CHARACTER_LIMIT.toLocaleString()} chars). Use pagination (offset/limit), add filters, or use response_mode='compact' to see more results.`
+      };
+      return { content: finalContent, truncation };
+    }
+    
+    return { content: finalContent, truncation: null };
+  } catch {
+    // If JSON parsing fails, fall back to string truncation
+    return truncateMarkdownResponse(content, itemCount, itemType);
+  }
+}
+
+/**
+ * Truncate markdown response if it exceeds character limit with smart boundary detection
+ */
+function truncateMarkdownResponse(
   content: string,
   itemCount: number,
   itemType: string = "items"
@@ -414,6 +487,28 @@ export function truncateResponse(
   };
 
   return { content: finalContent, truncation };
+}
+
+/**
+ * Truncate response if it exceeds character limit with smart boundary detection
+ * Detects format and uses appropriate truncation strategy
+ */
+export function truncateResponse(
+  content: string,
+  itemCount: number,
+  itemType: string = "items"
+): { content: string; truncation: TruncationInfo | null } {
+  if (content.length <= CHARACTER_LIMIT) {
+    return { content, truncation: null };
+  }
+  
+  // Detect if content is JSON by checking first non-whitespace character
+  const trimmed = content.trimStart();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    return truncateJsonResponse(content, itemCount, itemType);
+  }
+  
+  return truncateMarkdownResponse(content, itemCount, itemType);
 }
 
 /**
@@ -523,6 +618,7 @@ export interface ExportCSVOptions {
   statuses?: string[];
   custom_fields?: string[];
   include_standard_fields?: boolean;
+  add_phone_number_column?: boolean;
 }
 
 /**
@@ -704,6 +800,37 @@ export function taskToCSVRow(task: ClickUpTask, fieldOrder: string[]): string[] 
       value = task.description || task.text_content || '';
     } else if (fieldName === 'Tags') {
       value = task.tags?.map(t => t.name).join('; ') || '';
+    } else if (fieldName === 'phone_number') {
+      // Combined phone number field for ElevenLabs compatibility
+      // First check if a real phone_number custom field exists
+      const realPhoneNumberField = task.custom_fields?.find(f => f.name === 'phone_number');
+      
+      if (realPhoneNumberField && (realPhoneNumberField.value !== null && realPhoneNumberField.value !== undefined && realPhoneNumberField.value !== '')) {
+        // Use the real phone_number field value (already normalized)
+        value = extractCustomFieldValue(realPhoneNumberField);
+      } else {
+        // No real phone_number field, use synthetic logic
+        // Priority: Personal Phone > Biz Phone number > first phone field found
+        const personalPhone = getCustomField(task, 'Personal Phone');
+        const bizPhone = getCustomField(task, 'Biz Phone number');
+        
+        if (personalPhone) {
+          value = personalPhone;
+        } else if (bizPhone) {
+          value = bizPhone;
+        } else {
+          // Try to find any phone field
+          const phoneFields = task.custom_fields?.filter(f => 
+            f.type === 'phone' || 
+            f.type === 'phone_number' ||
+            (typeof f.name === 'string' && /phone/i.test(f.name))
+          ) || [];
+          
+          if (phoneFields.length > 0) {
+            value = extractCustomFieldValue(phoneFields[0]);
+          }
+        }
+      }
     } else {
       // Custom field
       value = getCustomField(task, fieldName);
@@ -727,7 +854,8 @@ export async function exportTasksToCSV(
     include_closed = false,
     statuses,
     custom_fields,
-    include_standard_fields = true
+    include_standard_fields = true,
+    add_phone_number_column = false
   } = options;
 
   const limit = MAX_LIMIT;
@@ -810,6 +938,25 @@ export async function exportTasksToCSV(
     fieldOrder.push(...standardFields);
   }
   fieldOrder.push(...customFieldsToInclude);
+
+  // Add phone_number column if requested (for ElevenLabs compatibility)
+  if (add_phone_number_column) {
+    // Check if phone_number already exists (e.g., as a real custom field)
+    const phoneNumberIdx = fieldOrder.indexOf('phone_number');
+    
+    if (phoneNumberIdx === -1) {
+      // phone_number doesn't exist, add our synthetic one
+      // Find Email index to insert after it
+      const emailIdx = fieldOrder.indexOf('Email');
+      if (emailIdx >= 0) {
+        fieldOrder.splice(emailIdx + 1, 0, 'phone_number');
+      } else {
+        // If no Email field, add at the end
+        fieldOrder.push('phone_number');
+      }
+    }
+    // If phone_number already exists, use the existing one (no duplicate needed)
+  }
 
   // Step 4: Build CSV
   const csvRows: string[] = [];

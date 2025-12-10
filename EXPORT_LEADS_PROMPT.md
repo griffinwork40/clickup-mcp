@@ -20,12 +20,15 @@ Use the ClickUp MCP to export all leads with status "#1 - phone call" to CSV for
      - `include_closed`: `false`
      - `archived`: `false`
      - `include_standard_fields`: `true` (to include standard fields like Task ID, Name, Status, etc.)
+     - `add_phone_number_column`: `true` (automatically creates a combined phone_number column for ElevenLabs)
 
 5. Save the CSV output to a file named `phone-call-leads.csv`
 
 ## Expected Result:
 
-A CSV file with all leads that have status "#1 - phone call", with phone numbers automatically normalized to E.164 format (e.g., `+14124812210` instead of `+1 412 481 2210`).
+A CSV file with all leads that have status "#1 - phone call", with:
+- Phone numbers automatically normalized to E.164 format (e.g., `+14124812210` instead of `+1 412 481 2210`)
+- A `phone_number` column ready for ElevenLabs batch calling
 
 ---
 
@@ -42,9 +45,11 @@ Use the ClickUp MCP to export all leads with status "#1 - phone call" to CSV for
    - statuses: ["#1 - phone call"]
    - include_closed: false
    - archived: false
+   - add_phone_number_column: true
 5. Save the CSV output to a file named phone-call-leads.csv
 
-The phone numbers should be automatically normalized to E.164 format for ElevenLabs batch calling.
+The phone numbers will be automatically normalized to E.164 format and a phone_number column will be created for ElevenLabs batch calling.
 ```
+
 
 

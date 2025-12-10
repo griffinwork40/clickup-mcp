@@ -5,3 +5,4 @@ Release prep for npm publish (2025-12-10)
 - [ ] Run tests and build
 - [ ] Publish to npm and confirm
 - [ ] Update progress.md completion after publish
+

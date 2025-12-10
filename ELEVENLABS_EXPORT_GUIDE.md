@@ -116,6 +116,7 @@ Or get folderless lists:
   "include_closed": false,
   "archived": false,
   "include_standard_fields": true,
+  "add_phone_number_column": true,
   "custom_fields": [
     "Email",
     "Personal Phone",
@@ -133,13 +134,14 @@ Or get folderless lists:
 - `include_closed`: Set to `false` to exclude closed tasks
 - `archived`: Set to `false` to exclude archived tasks
 - `include_standard_fields`: Set to `true` to include standard fields (Task ID, Name, Status, etc.)
+- **`add_phone_number_column`**: Set to `true` to automatically create a combined `phone_number` column (recommended for ElevenLabs)
 - `custom_fields`: Array of custom field names to include (optional - if omitted, includes all custom fields)
 
-**Result**: CSV content with all phone numbers normalized to E.164 format.
+**Result**: CSV content with all phone numbers normalized to E.164 format and a `phone_number` column ready for ElevenLabs.
 
-### Step 5: Add Required `phone_number` Column
+### Step 5: (Optional) Manual `phone_number` Column Creation
 
-ElevenLabs requires a column named exactly `phone_number`. The export tool creates separate columns for "Personal Phone" and "Biz Phone number", so you need to add a combined `phone_number` column.
+If you set `add_phone_number_column: false` (or omit it), you can manually add the `phone_number` column using the script below. However, **it's recommended to use `add_phone_number_column: true`** to have the MCP tool handle this automatically.
 
 **Python Script** (run after export):
 
@@ -236,6 +238,7 @@ Your final CSV should have these columns (at minimum):
   "include_closed": false,
   "archived": false,
   "include_standard_fields": true,
+  "add_phone_number_column": true,
   "custom_fields": [
     "Email",
     "Personal Phone",
@@ -247,7 +250,7 @@ Your final CSV should have these columns (at minimum):
 }
 ```
 
-Then add the `phone_number` column using the Python script above.
+**Note**: With `add_phone_number_column: true`, the CSV will automatically include a `phone_number` column ready for ElevenLabs. No additional processing needed!
 
 ## Troubleshooting
 
@@ -257,7 +260,7 @@ Then add the `phone_number` column using the Python script above.
 
 ### Issue: Missing phone_number column
 
-**Solution**: Run the Python script in Step 5 to add the `phone_number` column that combines Personal Phone and Biz Phone number.
+**Solution**: Set `add_phone_number_column: true` in the export parameters. The MCP tool will automatically create the column. If you prefer manual creation, use the Python script in Step 5.
 
 ### Issue: Empty phone numbers
 
@@ -280,4 +283,5 @@ Then add the `phone_number` column using the Python script above.
 - `EXPORT_LEADS_PROMPT.md` - Quick prompt for exporting leads
 - `HOW_TO_EXPORT_LEADS_TO_CSV.md` - Detailed export guide
 - `HOW_TO_COUNT_LEADS.md` - Guide for counting leads by status
+
 
