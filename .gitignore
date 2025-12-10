@@ -31,3 +31,6 @@ Thumbs.db
 
 # npm Cache
 .npm-cache/
+
+# npm config (may contain secrets)
+.npmrc
