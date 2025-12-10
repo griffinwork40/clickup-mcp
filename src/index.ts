@@ -23,7 +23,10 @@ import {
   getPagination,
   truncateResponse,
   formatTruncationInfo,
-  getApiToken
+  getApiToken,
+  filterTasksByStatus,
+  countTasksByStatus,
+  exportTasksToCSV
 } from "./utils.js";
 import { ResponseFormat, ResponseMode, Priority, DEFAULT_LIMIT, MAX_LIMIT } from "./constants.js";
 import type {
@@ -606,6 +609,10 @@ Error Handling:
         page: Math.floor(offset / limit)
       };
 
+      let useClientSideFiltering = false;
+      let allTasks: ClickUpTask[] = [];
+
+      // Try API filtering first if statuses are specified
       if (params.statuses && params.statuses.length > 0) {
         queryParams.statuses = JSON.stringify(params.statuses);
       }
@@ -614,15 +621,68 @@ Error Handling:
         queryParams.assignees = JSON.stringify(params.assignees);
       }
 
-      const data = await makeApiRequest<{ tasks: ClickUpTask[] }>(
-        `list/${params.list_id}/task`,
-        "GET",
-        undefined,
-        queryParams
-      );
-      const tasks = data.tasks || [];
+      try {
+        const data = await makeApiRequest<{ tasks: ClickUpTask[] }>(
+          `list/${params.list_id}/task`,
+          "GET",
+          undefined,
+          queryParams
+        );
+        allTasks = data.tasks || [];
+      } catch (error) {
+        // If API filtering fails with 400 error and we have status filters, fall back to client-side filtering
+        if (error instanceof Error && 'response' in error && (error as any).response?.status === 400 && params.statuses && params.statuses.length > 0) {
+          useClientSideFiltering = true;
+          
+          // Fetch all tasks with pagination
+          let currentOffset = 0;
+          let hasMore = true;
+          const fetchLimit = MAX_LIMIT; // Use max limit for efficiency
+          
+          while (hasMore) {
+            const fetchParams: any = {
+              archived: params.archived,
+              include_closed: params.include_closed,
+              page: Math.floor(currentOffset / fetchLimit)
+            };
+            
+            if (params.assignees && params.assignees.length > 0) {
+              fetchParams.assignees = JSON.stringify(params.assignees);
+            }
+            
+            const fetchData = await makeApiRequest<{ tasks: ClickUpTask[] }>(
+              `list/${params.list_id}/task`,
+              "GET",
+              undefined,
+              fetchParams
+            );
+            
+            const fetchedTasks = fetchData.tasks || [];
+            allTasks.push(...fetchedTasks);
+            
+            hasMore = fetchedTasks.length === fetchLimit;
+            currentOffset += fetchLimit;
+          }
+          
+          // Apply client-side status filtering
+          allTasks = filterTasksByStatus(allTasks, params.statuses);
+        } else {
+          // Re-throw if it's not a 400 error or we don't have status filters
+          throw error;
+        }
+      }
 
-      const pagination = getPagination(undefined, tasks.length, offset, limit);
+      // Apply pagination to results
+      const paginatedTasks = useClientSideFiltering
+        ? allTasks.slice(offset, offset + limit)
+        : allTasks;
+
+      const pagination = getPagination(
+        useClientSideFiltering ? allTasks.length : undefined,
+        paginatedTasks.length,
+        offset,
+        limit
+      );
 
       let result: string;
 
@@ -631,12 +691,16 @@ Error Handling:
 
         // Handle summary mode
         if (params.response_mode === ResponseMode.SUMMARY) {
-          result = generateTaskSummary(tasks);
+          result = generateTaskSummary(useClientSideFiltering ? allTasks : paginatedTasks);
         } else {
-          lines.push(`Found ${tasks.length} task(s) (offset: ${offset})`, "");
+          const totalCount = useClientSideFiltering ? allTasks.length : paginatedTasks.length;
+          lines.push(`Found ${totalCount} task(s) (offset: ${offset})`, "");
+          if (useClientSideFiltering && params.statuses) {
+            lines.push(`*(Using client-side filtering for status: ${params.statuses.join(", ")})*`, "");
+          }
 
           // Handle full vs compact mode
-          for (const task of tasks) {
+          for (const task of paginatedTasks) {
             if (params.response_mode === ResponseMode.COMPACT) {
               lines.push(formatTaskCompact(task));
             } else {
@@ -656,10 +720,10 @@ Error Handling:
         }
       } else {
         // JSON format always returns full data
-        result = JSON.stringify({ tasks, pagination }, null, 2);
+        result = JSON.stringify({ tasks: paginatedTasks, pagination }, null, 2);
       }
 
-      const { content: finalContent, truncation } = truncateResponse(result, tasks.length, "tasks");
+      const { content: finalContent, truncation } = truncateResponse(result, paginatedTasks.length, "tasks");
       result = finalContent + formatTruncationInfo(truncation);
 
       return {
@@ -1063,22 +1127,80 @@ Error Handling:
         page: Math.floor(offset / limit)
       };
 
+      let useClientSideFiltering = false;
+      let allTasks: ClickUpTask[] = [];
+
       if (params.query) queryParams.query = params.query;
-      if (params.statuses) queryParams.statuses = JSON.stringify(params.statuses);
+      if (params.statuses && params.statuses.length > 0) {
+        queryParams.statuses = JSON.stringify(params.statuses);
+      }
       if (params.assignees) queryParams.assignees = JSON.stringify(params.assignees);
       if (params.tags) queryParams.tags = JSON.stringify(params.tags);
       if (params.date_created_gt) queryParams.date_created_gt = params.date_created_gt;
       if (params.date_updated_gt) queryParams.date_updated_gt = params.date_updated_gt;
 
-      const data = await makeApiRequest<{ tasks: ClickUpTask[] }>(
-        `team/${params.team_id}/task`,
-        "GET",
-        undefined,
-        queryParams
-      );
-      const tasks = data.tasks || [];
+      try {
+        const data = await makeApiRequest<{ tasks: ClickUpTask[] }>(
+          `team/${params.team_id}/task`,
+          "GET",
+          undefined,
+          queryParams
+        );
+        allTasks = data.tasks || [];
+      } catch (error) {
+        // If API filtering fails with 400 error and we have status filters, fall back to client-side filtering
+        if (error instanceof Error && 'response' in error && (error as any).response?.status === 400 && params.statuses && params.statuses.length > 0) {
+          useClientSideFiltering = true;
+          
+          // Fetch all tasks with pagination
+          let currentOffset = 0;
+          let hasMore = true;
+          const fetchLimit = MAX_LIMIT; // Use max limit for efficiency
+          
+          while (hasMore) {
+            const fetchParams: any = {
+              page: Math.floor(currentOffset / fetchLimit)
+            };
+            
+            if (params.query) fetchParams.query = params.query;
+            if (params.assignees) fetchParams.assignees = JSON.stringify(params.assignees);
+            if (params.tags) fetchParams.tags = JSON.stringify(params.tags);
+            if (params.date_created_gt) fetchParams.date_created_gt = params.date_created_gt;
+            if (params.date_updated_gt) fetchParams.date_updated_gt = params.date_updated_gt;
+            
+            const fetchData = await makeApiRequest<{ tasks: ClickUpTask[] }>(
+              `team/${params.team_id}/task`,
+              "GET",
+              undefined,
+              fetchParams
+            );
+            
+            const fetchedTasks = fetchData.tasks || [];
+            allTasks.push(...fetchedTasks);
+            
+            hasMore = fetchedTasks.length === fetchLimit;
+            currentOffset += fetchLimit;
+          }
+          
+          // Apply client-side status filtering
+          allTasks = filterTasksByStatus(allTasks, params.statuses);
+        } else {
+          // Re-throw if it's not a 400 error or we don't have status filters
+          throw error;
+        }
+      }
 
-      const pagination = getPagination(undefined, tasks.length, offset, limit);
+      // Apply pagination to results
+      const paginatedTasks = useClientSideFiltering
+        ? allTasks.slice(offset, offset + limit)
+        : allTasks;
+
+      const pagination = getPagination(
+        useClientSideFiltering ? allTasks.length : undefined,
+        paginatedTasks.length,
+        offset,
+        limit
+      );
 
       let result: string;
 
@@ -1087,12 +1209,16 @@ Error Handling:
 
         // Handle summary mode
         if (params.response_mode === ResponseMode.SUMMARY) {
-          result = generateTaskSummary(tasks);
+          result = generateTaskSummary(useClientSideFiltering ? allTasks : paginatedTasks);
         } else {
-          lines.push(`Found ${tasks.length} task(s)`, "");
+          const totalCount = useClientSideFiltering ? allTasks.length : paginatedTasks.length;
+          lines.push(`Found ${totalCount} task(s)`, "");
+          if (useClientSideFiltering && params.statuses) {
+            lines.push(`*(Using client-side filtering for status: ${params.statuses.join(", ")})*`, "");
+          }
 
           // Handle full vs compact mode
-          for (const task of tasks) {
+          for (const task of paginatedTasks) {
             if (params.response_mode === ResponseMode.COMPACT) {
               lines.push(formatTaskCompact(task));
             } else {
@@ -1112,10 +1238,10 @@ Error Handling:
         }
       } else {
         // JSON format always returns full data
-        result = JSON.stringify({ tasks, pagination }, null, 2);
+        result = JSON.stringify({ tasks: paginatedTasks, pagination }, null, 2);
       }
 
-      const { content: finalContent, truncation } = truncateResponse(result, tasks.length, "tasks");
+      const { content: finalContent, truncation } = truncateResponse(result, paginatedTasks.length, "tasks");
       result = finalContent + formatTruncationInfo(truncation);
 
       return {
@@ -1130,7 +1256,181 @@ Error Handling:
 );
 
 // ============================================================================
-// Tool 12: Add Comment
+// Tool 12: Count Tasks by Status
+// ============================================================================
+
+server.registerTool(
+  "clickup_count_tasks_by_status",
+  {
+    title: "Count Tasks by Status",
+    description: `Count tasks in a list, optionally filtered by status.
+
+This tool handles pagination internally and returns counts efficiently. It's optimized for counting tasks by status, which is useful for lead tracking, status reporting, and analytics.
+
+Args:
+  - list_id (string): The list ID to count tasks in
+  - statuses (string[], optional): Filter by specific status names. If omitted, returns counts for all statuses
+  - archived (boolean): Include archived tasks (default: false)
+  - include_closed (boolean): Include closed tasks (default: false)
+  - response_format ('markdown' | 'json'): Output format (default: 'markdown')
+
+Returns:
+  For JSON format:
+  {
+    "total": number,
+    "by_status": {
+      "status_name": count,
+      ...
+    }
+  }
+
+Examples:
+  - Use when: "Count all tasks in list 123456"
+  - Use when: "How many tasks have status '#1 - phone call' in list 123456?"
+  - Use when: "Get counts for all statuses in this list"
+
+Error Handling:
+  - Returns "Error: Resource not found" if list_id is invalid (404)`,
+    inputSchema: z.object({
+      list_id: z.string().min(1).describe("List ID"),
+      statuses: z.array(z.string()).optional().describe("Filter by specific status names. If omitted, returns counts for all statuses"),
+      archived: z.boolean().default(false).describe("Include archived tasks"),
+      include_closed: z.boolean().default(false).describe("Include closed tasks"),
+      response_format: ResponseFormatSchema
+    }).strict(),
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params) => {
+    try {
+      const result = await countTasksByStatus(params.list_id, {
+        archived: params.archived,
+        include_closed: params.include_closed,
+        statuses: params.statuses
+      });
+
+      let output: string;
+
+      if (params.response_format === ResponseFormat.MARKDOWN) {
+        const lines: string[] = [`# Task Counts for List ${params.list_id}`, ""];
+        
+        if (params.statuses && params.statuses.length > 0) {
+          lines.push(`**Filtering by status**: ${params.statuses.join(", ")}`, "");
+        }
+        
+        lines.push(`**Total tasks**: ${result.total}`, "");
+        lines.push("");
+
+        if (Object.keys(result.by_status).length > 0) {
+          lines.push("## Counts by Status");
+          for (const [status, count] of Object.entries(result.by_status).sort((a, b) => b[1] - a[1])) {
+            lines.push(`- ${status}: ${count}`);
+          }
+        } else {
+          lines.push("No tasks found matching the criteria.");
+        }
+
+        output = lines.join("\n");
+      } else {
+        output = JSON.stringify(result, null, 2);
+      }
+
+      return {
+        content: [{ type: "text", text: output }]
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: handleApiError(error) }]
+      };
+    }
+  }
+);
+
+// ============================================================================
+// Tool 13: Export Tasks to CSV
+// ============================================================================
+
+server.registerTool(
+  "clickup_export_tasks_to_csv",
+  {
+    title: "Export Tasks to CSV",
+    description: `Export tasks from a list to CSV format.
+
+This tool handles pagination, status filtering, and custom field extraction automatically. It fetches detailed task information to include all custom fields in the export.
+
+Args:
+  - list_id (string): The list to export from
+  - statuses (string[], optional): Filter by specific status names. If omitted, exports all tasks
+  - archived (boolean): Include archived tasks (default: false)
+  - include_closed (boolean): Include closed tasks (default: false)
+  - custom_fields (string[], optional): Specific custom field names to include. If omitted, includes all custom fields found
+  - include_standard_fields (boolean): Include standard fields like ID, name, status, etc. (default: true)
+
+Returns:
+  CSV content as text (can be saved to file by client). Includes headers as first row.
+
+Examples:
+  - Use when: "Export all tasks from list 123456 to CSV"
+  - Use when: "Export tasks with status '#1 - phone call' from list 123456"
+  - Use when: "Export leads with specific custom fields to CSV"
+
+Error Handling:
+  - Returns "Error: Resource not found" if list_id is invalid (404)
+  - Returns empty CSV if no tasks match the criteria`,
+    inputSchema: z.object({
+      list_id: z.string().min(1).describe("List ID"),
+      statuses: z.array(z.string()).optional().describe("Filter by specific status names. If omitted, exports all tasks"),
+      archived: z.boolean().default(false).describe("Include archived tasks"),
+      include_closed: z.boolean().default(false).describe("Include closed tasks"),
+      custom_fields: z.array(z.string()).optional().describe("Specific custom field names to include. If omitted, includes all custom fields found"),
+      include_standard_fields: z.boolean().default(true).describe("Include standard fields like ID, name, status, etc.")
+    }).strict(),
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    }
+  },
+  async (params) => {
+    try {
+      const csvContent = await exportTasksToCSV(params.list_id, {
+        archived: params.archived,
+        include_closed: params.include_closed,
+        statuses: params.statuses,
+        custom_fields: params.custom_fields,
+        include_standard_fields: params.include_standard_fields
+      });
+
+      if (csvContent === '') {
+        return {
+          content: [{
+            type: "text",
+            text: "No tasks found matching the criteria. CSV is empty."
+          }]
+        };
+      }
+
+      return {
+        content: [{
+          type: "text",
+          text: csvContent
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: handleApiError(error) }]
+      };
+    }
+  }
+);
+
+// ============================================================================
+// Tool 14: Add Comment
 // ============================================================================
 
 server.registerTool(
@@ -1193,7 +1493,7 @@ Error Handling:
 );
 
 // ============================================================================
-// Tool 13: Get Comments
+// Tool 15: Get Comments
 // ============================================================================
 
 server.registerTool(
@@ -1269,7 +1569,7 @@ Error Handling:
 );
 
 // ============================================================================
-// Tool 14: Set Custom Field
+// Tool 16: Set Custom Field
 // ============================================================================
 
 server.registerTool(
@@ -1337,7 +1637,7 @@ Error Handling:
 );
 
 // ============================================================================
-// Tool 15: Start Time Entry
+// Tool 17: Start Time Entry
 // ============================================================================
 
 server.registerTool(
@@ -1401,7 +1701,7 @@ Error Handling:
 );
 
 // ============================================================================
-// Tool 16: Stop Time Entry
+// Tool 18: Stop Time Entry
 // ============================================================================
 
 server.registerTool(
@@ -1457,7 +1757,7 @@ Error Handling:
 );
 
 // ============================================================================
-// Tool 17: Get Time Entries
+// Tool 19: Get Time Entries
 // ============================================================================
 
 server.registerTool(
