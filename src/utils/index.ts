@@ -15,11 +15,15 @@ export {
   formatSpaceMarkdown,
   formatFolderMarkdown,
   formatCommentMarkdown,
-  formatTimeEntryMarkdown,
+  formatTimeEntryMarkdown
+} from "./formatting.js";
+
+// Response utilities
+export {
   generateTaskSummary,
   truncateResponse,
   formatTruncationInfo
-} from "./formatting.js";
+} from "./response.js";
 
 // Task utilities
 export {
