@@ -387,7 +387,8 @@ function truncateJsonResponse(
     let keptItems = items.length;
     
     // Remove items one by one until we're under the limit
-    while (JSON.stringify(data).length > CHARACTER_LIMIT && data[arrayKey].length > 1) {
+    // IMPORTANT: Check size of PRETTY-PRINTED JSON since that's what we return
+    while (JSON.stringify(data, null, 2).length > CHARACTER_LIMIT && data[arrayKey].length > 1) {
       data[arrayKey].pop();
       keptItems = data[arrayKey].length;
     }
