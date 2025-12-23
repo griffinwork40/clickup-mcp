@@ -4,7 +4,7 @@ Tracks release prep and publishing for `@griffinwork40/clickup-mcp-server`.
 
 ## Current Session (2025-12-23)
 - Focus: Add JSDoc documentation and update README
-- Status: 95% complete (PR creation pending)
+- Status: 100% complete
 
 ### Completed Tasks
 - [x] Added comprehensive JSDoc to `src/constants.ts`
@@ -19,10 +19,10 @@ Tracks release prep and publishing for `@griffinwork40/clickup-mcp-server`.
   - Response format/mode documentation
   - Development and contributing sections
 - [x] Verified build succeeds with no TypeScript errors
+- [x] Committed and pushed to `docs/jsdoc-readme` branch
 
-### Next Steps
-- [ ] Create PR for documentation updates
-- [ ] Merge PR
+### PR Link
+Create PR at: https://github.com/griffinwork40/clickup-mcp/pull/new/docs/jsdoc-readme
 
 ---
 

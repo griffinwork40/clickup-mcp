@@ -6,7 +6,8 @@
 - [x] Add JSDoc documentation to `src/utils.ts` functions
 - [x] Update README with comprehensive documentation
 - [x] Run build to verify no TypeScript errors
-- [ ] Create and submit PR
+- [x] Commit and push to `docs/jsdoc-readme` branch
+- [ ] Create PR at: https://github.com/griffinwork40/clickup-mcp/pull/new/docs/jsdoc-readme
 
 ---
 
