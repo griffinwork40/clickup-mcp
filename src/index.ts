@@ -27,7 +27,7 @@ import {
   filterTasksByStatus,
   countTasksByStatus,
   exportTasksToCSV
-} from "./utils.js";
+} from "./utils/index.js";
 import { ResponseFormat, ResponseMode, Priority, DEFAULT_LIMIT, MAX_LIMIT } from "./constants.js";
 import type {
   ClickUpTeam,
