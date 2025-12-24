@@ -1,5 +1,8 @@
 /**
- * Shared utility functions for ClickUp MCP server.
+ * @file utils.ts
+ * @description Shared utility functions for ClickUp MCP server.
+ * This module provides helper functions for API communication, response formatting,
+ * data transformation, and CSV export capabilities.
  */
 
 import axios, { AxiosError } from "axios";
@@ -17,7 +20,21 @@ import type {
 } from "./types.js";
 
 /**
- * Get ClickUp API token from environment
+ * Retrieves the ClickUp API token from environment variables.
+ * 
+ * @description Checks for the CLICKUP_API_TOKEN environment variable and returns it.
+ * This token is required for authenticating all ClickUp API requests.
+ * 
+ * @returns {string} The ClickUp API token
+ * @throws {Error} If CLICKUP_API_TOKEN environment variable is not set
+ * 
+ * @example
+ * try {
+ *   const token = getApiToken();
+ *   console.log("Token retrieved successfully");
+ * } catch (error) {
+ *   console.error("API token not configured");
+ * }
  */
 export function getApiToken(): string {
   const token = process.env.CLICKUP_API_TOKEN;
@@ -28,7 +45,40 @@ export function getApiToken(): string {
 }
 
 /**
- * Make an authenticated request to the ClickUp API
+ * Makes an authenticated request to the ClickUp API.
+ * 
+ * @description Sends an HTTP request to the ClickUp API v2 with automatic
+ * authentication using the configured API token. Supports all HTTP methods
+ * and handles request/response serialization.
+ * 
+ * @template T - The expected response type
+ * @param {string} endpoint - API endpoint path (without base URL)
+ * @param {"GET" | "POST" | "PUT" | "DELETE"} [method="GET"] - HTTP method
+ * @param {any} [data] - Request body data for POST/PUT requests
+ * @param {any} [params] - URL query parameters
+ * @returns {Promise<T>} The parsed API response
+ * @throws {AxiosError} If the API request fails
+ * 
+ * @example
+ * // GET request
+ * const teams = await makeApiRequest<{ teams: ClickUpTeam[] }>("team");
+ * 
+ * @example
+ * // POST request with data
+ * const task = await makeApiRequest<ClickUpTask>(
+ *   "list/123/task",
+ *   "POST",
+ *   { name: "New Task", description: "Task description" }
+ * );
+ * 
+ * @example
+ * // GET request with query parameters
+ * const tasks = await makeApiRequest<{ tasks: ClickUpTask[] }>(
+ *   "list/123/task",
+ *   "GET",
+ *   undefined,
+ *   { archived: false, page: 0 }
+ * );
  */
 export async function makeApiRequest<T>(
   endpoint: string,
@@ -57,7 +107,22 @@ export async function makeApiRequest<T>(
 }
 
 /**
- * Convert API errors to user-friendly messages
+ * Converts API errors to user-friendly error messages.
+ * 
+ * @description Analyzes error responses from the ClickUp API and returns
+ * appropriate human-readable error messages. Handles common HTTP status codes,
+ * network errors, and timeout conditions.
+ * 
+ * @param {unknown} error - The error object to handle
+ * @returns {string} A user-friendly error message
+ * 
+ * @example
+ * try {
+ *   await makeApiRequest("team/invalid");
+ * } catch (error) {
+ *   const message = handleApiError(error);
+ *   // Returns: "Error: Resource not found. Please check the ID is correct."
+ * }
  */
 export function handleApiError(error: unknown): string {
   if (error instanceof AxiosError) {
@@ -94,7 +159,17 @@ export function handleApiError(error: unknown): string {
 }
 
 /**
- * Format a timestamp as human-readable date
+ * Formats a Unix timestamp as a human-readable date string.
+ * 
+ * @description Converts a Unix timestamp (milliseconds) to an ISO-like date string
+ * in UTC timezone. Returns "Not set" for undefined or falsy values.
+ * 
+ * @param {string | number | undefined} timestamp - Unix timestamp in milliseconds
+ * @returns {string} Formatted date string (YYYY-MM-DD HH:MM:SS UTC) or "Not set"
+ * 
+ * @example
+ * formatDate("1609459200000"); // Returns: "2021-01-01 00:00:00 UTC"
+ * formatDate(undefined);       // Returns: "Not set"
  */
 export function formatDate(timestamp: string | number | undefined): string {
   if (!timestamp) return "Not set";
@@ -104,7 +179,17 @@ export function formatDate(timestamp: string | number | undefined): string {
 }
 
 /**
- * Format priority value as human-readable string
+ * Formats a priority object as a human-readable string.
+ * 
+ * @description Extracts the priority label from a ClickUp priority object.
+ * Returns "None" if no priority is set.
+ * 
+ * @param {{ priority: string; color: string } | undefined} priority - Priority object
+ * @returns {string} Priority label or "None"
+ * 
+ * @example
+ * formatPriority({ priority: "high", color: "#f9d900" }); // Returns: "high"
+ * formatPriority(undefined); // Returns: "None"
  */
 export function formatPriority(priority?: { priority: string; color: string }): string {
   if (!priority) return "None";
@@ -112,7 +197,23 @@ export function formatPriority(priority?: { priority: string; color: string }): 
 }
 
 /**
- * Format a task as markdown (full detail)
+ * Formats a task as detailed markdown output.
+ * 
+ * @description Generates comprehensive markdown-formatted output for a task,
+ * including name, status, priority, dates, assignees, tags, description, and URL.
+ * Used for full detail display of individual tasks.
+ * 
+ * @param {ClickUpTask} task - The task to format
+ * @returns {string} Markdown-formatted task details
+ * 
+ * @example
+ * const markdown = formatTaskMarkdown(task);
+ * // Returns:
+ * // # Task Name (abc123)
+ * //
+ * // **Status**: in progress
+ * // **Priority**: high
+ * // ...
  */
 export function formatTaskMarkdown(task: ClickUpTask): string {
   const lines: string[] = [];
@@ -151,7 +252,18 @@ export function formatTaskMarkdown(task: ClickUpTask): string {
 }
 
 /**
- * Format a task as compact markdown (essential fields only)
+ * Formats a task as compact single-line markdown.
+ * 
+ * @description Generates a condensed single-line representation of a task
+ * with essential fields only: name, ID, status, assignees, and URL.
+ * Ideal for displaying large lists of tasks.
+ * 
+ * @param {ClickUpTask} task - The task to format
+ * @returns {string} Single-line markdown task summary
+ * 
+ * @example
+ * const compact = formatTaskCompact(task);
+ * // Returns: "- **Task Name** (abc123) | Status: in progress | Assignees: john | URL: ..."
  */
 export function formatTaskCompact(task: ClickUpTask): string {
   const assignees = task.assignees && task.assignees.length > 0
@@ -162,7 +274,22 @@ export function formatTaskCompact(task: ClickUpTask): string {
 }
 
 /**
- * Format a list as markdown
+ * Formats a list as detailed markdown output.
+ * 
+ * @description Generates markdown-formatted output for a ClickUp list,
+ * including name, task count, parent folder/space, and available statuses.
+ * 
+ * @param {ClickUpList} list - The list to format
+ * @returns {string} Markdown-formatted list details
+ * 
+ * @example
+ * const markdown = formatListMarkdown(list);
+ * // Returns:
+ * // # List Name (123)
+ * //
+ * // **Tasks**: 42
+ * // **Folder**: Sprint 1
+ * // ...
  */
 export function formatListMarkdown(list: ClickUpList): string {
   const lines: string[] = [];
@@ -191,7 +318,22 @@ export function formatListMarkdown(list: ClickUpList): string {
 }
 
 /**
- * Format a space as markdown
+ * Formats a space as detailed markdown output.
+ * 
+ * @description Generates markdown-formatted output for a ClickUp space,
+ * including name, privacy settings, and enabled features.
+ * 
+ * @param {ClickUpSpace} space - The space to format
+ * @returns {string} Markdown-formatted space details
+ * 
+ * @example
+ * const markdown = formatSpaceMarkdown(space);
+ * // Returns:
+ * // # Space Name (789)
+ * //
+ * // **Private**: No
+ * // **Multiple Assignees**: Yes
+ * // ...
  */
 export function formatSpaceMarkdown(space: ClickUpSpace): string {
   const lines: string[] = [];
@@ -214,7 +356,22 @@ export function formatSpaceMarkdown(space: ClickUpSpace): string {
 }
 
 /**
- * Format a folder as markdown
+ * Formats a folder as detailed markdown output.
+ * 
+ * @description Generates markdown-formatted output for a ClickUp folder,
+ * including name, task count, visibility, parent space, and contained lists.
+ * 
+ * @param {ClickUpFolder} folder - The folder to format
+ * @returns {string} Markdown-formatted folder details
+ * 
+ * @example
+ * const markdown = formatFolderMarkdown(folder);
+ * // Returns:
+ * // # Folder Name (456)
+ * //
+ * // **Tasks**: 25
+ * // **Hidden**: No
+ * // ...
  */
 export function formatFolderMarkdown(folder: ClickUpFolder): string {
   const lines: string[] = [];
@@ -240,7 +397,19 @@ export function formatFolderMarkdown(folder: ClickUpFolder): string {
 }
 
 /**
- * Format a comment as markdown
+ * Formats a comment as markdown output.
+ * 
+ * @description Generates markdown-formatted output for a task comment,
+ * including author, timestamp, content, and resolution status.
+ * 
+ * @param {ClickUpComment} comment - The comment to format
+ * @returns {string} Markdown-formatted comment
+ * 
+ * @example
+ * const markdown = formatCommentMarkdown(comment);
+ * // Returns:
+ * // **@john** (2021-01-01 12:00:00 UTC)
+ * // Great work on this task!
  */
 export function formatCommentMarkdown(comment: ClickUpComment): string {
   const lines: string[] = [];
@@ -256,7 +425,21 @@ export function formatCommentMarkdown(comment: ClickUpComment): string {
 }
 
 /**
- * Format a time entry as markdown
+ * Formats a time entry as markdown output.
+ * 
+ * @description Generates markdown-formatted output for a time tracking entry,
+ * including duration, user, start/end times, associated task, and billable status.
+ * 
+ * @param {ClickUpTimeEntry} entry - The time entry to format
+ * @returns {string} Markdown-formatted time entry
+ * 
+ * @example
+ * const markdown = formatTimeEntryMarkdown(entry);
+ * // Returns:
+ * // **@john** - 2h 30m
+ * // - Start: 2021-01-01 09:00:00 UTC
+ * // - End: 2021-01-01 11:30:00 UTC
+ * // ...
  */
 export function formatTimeEntryMarkdown(entry: ClickUpTimeEntry): string {
   const lines: string[] = [];
@@ -288,7 +471,20 @@ export function formatTimeEntryMarkdown(entry: ClickUpTimeEntry): string {
 }
 
 /**
- * Extract pagination information from response
+ * Calculates pagination information from response data.
+ * 
+ * @description Generates pagination metadata including whether more results
+ * are available and the offset for the next page of results.
+ * 
+ * @param {number | undefined} total - Total number of items available (if known)
+ * @param {number} count - Number of items in current response
+ * @param {number} offset - Current offset position
+ * @param {number} limit - Maximum items per page
+ * @returns {PaginationInfo} Pagination metadata object
+ * 
+ * @example
+ * const pagination = getPagination(100, 20, 0, 20);
+ * // Returns: { total: 100, count: 20, offset: 0, has_more: true, next_offset: 20 }
  */
 export function getPagination(
   total: number | undefined,
@@ -308,7 +504,25 @@ export function getPagination(
 }
 
 /**
- * Generate summary statistics for a list of tasks
+ * Generates summary statistics for a list of tasks.
+ * 
+ * @description Analyzes a collection of tasks and produces a statistical
+ * summary including total count and breakdowns by status, assignee, and priority.
+ * 
+ * @param {ClickUpTask[]} tasks - Array of tasks to analyze
+ * @returns {string} Markdown-formatted summary statistics
+ * 
+ * @example
+ * const summary = generateTaskSummary(tasks);
+ * // Returns:
+ * // # Task Summary
+ * //
+ * // **Total Tasks**: 42
+ * //
+ * // ## By Status
+ * // - in progress: 15
+ * // - to do: 27
+ * // ...
  */
 export function generateTaskSummary(tasks: ClickUpTask[]): string {
   const lines: string[] = [];
@@ -366,7 +580,21 @@ export function generateTaskSummary(tasks: ClickUpTask[]): string {
 }
 
 /**
- * Truncate JSON response by removing items from arrays
+ * Truncates a JSON response by removing items from arrays.
+ * 
+ * @description Iteratively removes items from the main array in a JSON response
+ * until the serialized size is under the character limit. Preserves JSON structure.
+ * 
+ * @param {string} content - JSON string content to truncate
+ * @param {number} itemCount - Original number of items
+ * @param {string} [itemType="items"] - Type name for truncation message
+ * @returns {{ content: string; truncation: TruncationInfo | null }} Truncated content and metadata
+ * 
+ * @example
+ * const result = truncateJsonResponse(jsonString, 100, "tasks");
+ * if (result.truncation) {
+ *   console.log(`Truncated from ${result.truncation.original_count} to ${result.truncation.returned_count}`);
+ * }
  */
 function truncateJsonResponse(
   content: string,
@@ -440,7 +668,19 @@ function truncateJsonResponse(
 }
 
 /**
- * Truncate markdown response if it exceeds character limit with smart boundary detection
+ * Truncates a markdown response with smart boundary detection.
+ * 
+ * @description Truncates markdown content at logical boundaries (headers,
+ * horizontal rules) rather than mid-content. Provides truncation metadata.
+ * 
+ * @param {string} content - Markdown string content to truncate
+ * @param {number} itemCount - Original number of items
+ * @param {string} [itemType="items"] - Type name for truncation message
+ * @returns {{ content: string; truncation: TruncationInfo | null }} Truncated content and metadata
+ * 
+ * @example
+ * const result = truncateMarkdownResponse(markdownString, 50, "tasks");
+ * console.log(result.content); // Truncated markdown
  */
 function truncateMarkdownResponse(
   content: string,
@@ -491,8 +731,20 @@ function truncateMarkdownResponse(
 }
 
 /**
- * Truncate response if it exceeds character limit with smart boundary detection
- * Detects format and uses appropriate truncation strategy
+ * Truncates a response if it exceeds the character limit.
+ * 
+ * @description Automatically detects the response format (JSON or markdown)
+ * and applies the appropriate truncation strategy. Preserves as much content
+ * as possible while staying under the character limit.
+ * 
+ * @param {string} content - Response content to potentially truncate
+ * @param {number} itemCount - Original number of items in the response
+ * @param {string} [itemType="items"] - Type name for truncation message
+ * @returns {{ content: string; truncation: TruncationInfo | null }} Processed content and truncation info
+ * 
+ * @example
+ * const result = truncateResponse(responseContent, 100, "tasks");
+ * const output = result.content + formatTruncationInfo(result.truncation);
  */
 export function truncateResponse(
   content: string,
@@ -513,7 +765,17 @@ export function truncateResponse(
 }
 
 /**
- * Format truncation information as text
+ * Formats truncation information as a user-friendly message.
+ * 
+ * @description Generates a formatted warning message for truncated responses.
+ * Returns an empty string if no truncation occurred.
+ * 
+ * @param {TruncationInfo | null} truncation - Truncation metadata or null
+ * @returns {string} Formatted truncation warning or empty string
+ * 
+ * @example
+ * const message = formatTruncationInfo(truncation);
+ * // Returns: "\n\n---\n⚠️ Response truncated from 100 to 42 tasks..."
  */
 export function formatTruncationInfo(truncation: TruncationInfo | null): string {
   if (!truncation) return "";
@@ -522,7 +784,18 @@ export function formatTruncationInfo(truncation: TruncationInfo | null): string 
 }
 
 /**
- * Filter tasks by status names (client-side filtering)
+ * Filters tasks by status names using client-side filtering.
+ * 
+ * @description Filters an array of tasks to only include those matching
+ * the specified status names. Used as a fallback when API-side filtering fails.
+ * 
+ * @param {ClickUpTask[]} tasks - Array of tasks to filter
+ * @param {string[]} statuses - Status names to filter by
+ * @returns {ClickUpTask[]} Filtered array of tasks
+ * 
+ * @example
+ * const filtered = filterTasksByStatus(tasks, ["in progress", "review"]);
+ * console.log(`${filtered.length} tasks match the status filter`);
  */
 export function filterTasksByStatus(tasks: ClickUpTask[], statuses: string[]): ClickUpTask[] {
   if (!statuses || statuses.length === 0) {
@@ -536,7 +809,12 @@ export function filterTasksByStatus(tasks: ClickUpTask[], statuses: string[]): C
 }
 
 /**
- * Options for counting tasks by status
+ * Options for counting tasks by status.
+ * 
+ * @interface CountTasksOptions
+ * @property {boolean} [archived] - Include archived tasks
+ * @property {boolean} [include_closed] - Include closed tasks
+ * @property {string[]} [statuses] - Filter by specific status names
  */
 export interface CountTasksOptions {
   archived?: boolean;
@@ -545,7 +823,11 @@ export interface CountTasksOptions {
 }
 
 /**
- * Result of counting tasks by status
+ * Result of counting tasks by status.
+ * 
+ * @interface CountTasksResult
+ * @property {number} total - Total number of tasks counted
+ * @property {Record<string, number>} by_status - Count breakdown by status name
  */
 export interface CountTasksResult {
   total: number;
@@ -553,7 +835,23 @@ export interface CountTasksResult {
 }
 
 /**
- * Count tasks in a list by status, handling pagination internally
+ * Counts tasks in a list by status with automatic pagination handling.
+ * 
+ * @description Fetches all tasks from a list using pagination and returns
+ * counts grouped by status. Optionally filters by specific status names.
+ * 
+ * @param {string} listId - The ClickUp list ID
+ * @param {CountTasksOptions} [options={}] - Counting options
+ * @returns {Promise<CountTasksResult>} Total count and breakdown by status
+ * @throws {Error} If the API request fails
+ * 
+ * @example
+ * const counts = await countTasksByStatus("123456", {
+ *   statuses: ["in progress", "review"],
+ *   include_closed: false
+ * });
+ * console.log(`Total: ${counts.total}`);
+ * console.log("By status:", counts.by_status);
  */
 export async function countTasksByStatus(
   listId: string,
@@ -611,7 +909,15 @@ export async function countTasksByStatus(
 }
 
 /**
- * Options for exporting tasks to CSV
+ * Options for exporting tasks to CSV format.
+ * 
+ * @interface ExportCSVOptions
+ * @property {boolean} [archived] - Include archived tasks
+ * @property {boolean} [include_closed] - Include closed tasks
+ * @property {string[]} [statuses] - Filter by specific status names
+ * @property {string[]} [custom_fields] - Specific custom field names to include
+ * @property {boolean} [include_standard_fields] - Include standard fields (default: true)
+ * @property {boolean} [add_phone_number_column] - Add combined phone number column for ElevenLabs
  */
 export interface ExportCSVOptions {
   archived?: boolean;
@@ -623,7 +929,18 @@ export interface ExportCSVOptions {
 }
 
 /**
- * Escape CSV fields to handle commas, quotes, and newlines
+ * Escapes a value for safe inclusion in CSV format.
+ * 
+ * @description Handles special characters (commas, quotes, newlines) by
+ * wrapping values in quotes and escaping internal quotes.
+ * 
+ * @param {any} value - Value to escape
+ * @returns {string} CSV-safe string value
+ * 
+ * @example
+ * escapeCSV('Hello, World'); // Returns: '"Hello, World"'
+ * escapeCSV('Say "Hello"'); // Returns: '"Say ""Hello"""'
+ * escapeCSV('Normal text'); // Returns: 'Normal text'
  */
 export function escapeCSV(value: any): string {
   if (value === null || value === undefined) return '';
@@ -636,14 +953,20 @@ export function escapeCSV(value: any): string {
 }
 
 /**
- * Normalize phone number to E.164 format
- * E.164 format: ^\+?[1-9]\d{1,14}$
- * Rules:
- * - Optional + at the start
- * - Must start with digit 1-9 (not 0)
- * - Followed by 1-14 digits only
- * - NO spaces, dashes, parentheses, dots, or other characters
- * - NO extensions
+ * Normalizes a phone number to E.164 international format.
+ * 
+ * @description Converts various phone number formats to E.164 format
+ * (e.g., +15551234567). Handles US/Canada numbers, removes extensions,
+ * and validates the result against E.164 specifications.
+ * 
+ * @param {string | null | undefined} phone - Phone number to normalize
+ * @returns {string} E.164 formatted phone number or empty string if invalid
+ * 
+ * @example
+ * normalizePhoneToE164('555-123-4567'); // Returns: '+15551234567'
+ * normalizePhoneToE164('(555) 123-4567 x206'); // Returns: '+15551234567'
+ * normalizePhoneToE164('+44 20 7946 0958'); // Returns: '+442079460958'
+ * normalizePhoneToE164('invalid'); // Returns: ''
  */
 export function normalizePhoneToE164(phone: string | null | undefined): string {
   if (!phone) return '';
@@ -706,7 +1029,21 @@ export function normalizePhoneToE164(phone: string | null | undefined): string {
 }
 
 /**
- * Extract value from a custom field based on its type
+ * Extracts and formats the value from a custom field based on its type.
+ * 
+ * @description Handles various ClickUp custom field types (text, number,
+ * date, dropdown, etc.) and returns the appropriate string representation.
+ * Automatically normalizes phone number fields to E.164 format.
+ * 
+ * @param {ClickUpCustomField} field - Custom field to extract value from
+ * @returns {string} Formatted field value
+ * 
+ * @example
+ * extractCustomFieldValue({ id: '1', name: 'Points', type: 'number', value: 5 });
+ * // Returns: '5'
+ * 
+ * extractCustomFieldValue({ id: '2', name: 'Due', type: 'date', value: '1609459200000' });
+ * // Returns: '2021-01-01'
  */
 export function extractCustomFieldValue(field: ClickUpCustomField): string {
   if (!field || field.value === null || field.value === undefined || field.value === '') return '';
@@ -743,7 +1080,20 @@ export function extractCustomFieldValue(field: ClickUpCustomField): string {
 }
 
 /**
- * Get custom field value by name (prefers field with value if multiple exist)
+ * Gets a custom field value from a task by field name.
+ * 
+ * @description Searches a task's custom fields for a field with the specified
+ * name and returns its formatted value. Handles cases with multiple fields
+ * of the same name by preferring the one with a value.
+ * 
+ * @param {ClickUpTask} task - Task containing custom fields
+ * @param {string} fieldName - Name of the custom field to retrieve
+ * @param {string} [preferredType] - Optional preferred field type
+ * @returns {string} Field value or empty string if not found
+ * 
+ * @example
+ * const email = getCustomField(task, 'Email');
+ * const phone = getCustomField(task, 'Phone Number', 'phone');
  */
 export function getCustomField(task: ClickUpTask, fieldName: string, preferredType?: string): string {
   if (!task.custom_fields) return '';
@@ -768,7 +1118,18 @@ export function getCustomField(task: ClickUpTask, fieldName: string, preferredTy
 }
 
 /**
- * Convert task to CSV row array
+ * Converts a task to an array of CSV field values.
+ * 
+ * @description Maps task properties and custom fields to CSV column values
+ * in the specified field order. Handles both standard fields and custom fields.
+ * 
+ * @param {ClickUpTask} task - Task to convert
+ * @param {string[]} fieldOrder - Ordered list of field names for columns
+ * @returns {string[]} Array of escaped CSV values
+ * 
+ * @example
+ * const row = taskToCSVRow(task, ['Task ID', 'Name', 'Status', 'Email']);
+ * // Returns: ['abc123', 'Task Name', 'in progress', 'user@example.com']
  */
 export function taskToCSVRow(task: ClickUpTask, fieldOrder: string[]): string[] {
   const row: string[] = [];
@@ -844,7 +1205,26 @@ export function taskToCSVRow(task: ClickUpTask, fieldOrder: string[]): string[] 
 }
 
 /**
- * Export tasks to CSV format
+ * Exports tasks from a ClickUp list to CSV format.
+ * 
+ * @description Fetches all tasks from a list with automatic pagination,
+ * applies optional status filtering, and generates CSV output with
+ * standard fields and custom fields.
+ * 
+ * @param {string} listId - ClickUp list ID to export from
+ * @param {ExportCSVOptions} [options={}] - Export configuration options
+ * @returns {Promise<string>} CSV content as a string
+ * @throws {Error} If the API request fails
+ * 
+ * @example
+ * const csv = await exportTasksToCSV("123456", {
+ *   statuses: ["in progress"],
+ *   include_standard_fields: true,
+ *   add_phone_number_column: true
+ * });
+ * 
+ * // Save to file
+ * fs.writeFileSync('tasks.csv', csv);
  */
 export async function exportTasksToCSV(
   listId: string,
