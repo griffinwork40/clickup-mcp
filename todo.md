@@ -1,5 +1,23 @@
 # TODO
 
+## Utils Refactoring (2025-12-28)
+- [x] Create `src/utils/` directory
+- [x] Create `api-helpers.ts` - API token, makeApiRequest, handleApiError
+- [x] Create `time-formatters.ts` - formatDate, formatTimeEntryMarkdown
+- [x] Create `comment-formatters.ts` - formatCommentMarkdown
+- [x] Create `custom-field-formatters.ts` - CSV/phone/field extraction
+- [x] Create `task-formatters.ts` - entity formatters, pagination
+- [x] Create `response-utils.ts` - truncation, filtering
+- [x] Create `task-operations.ts` - countTasksByStatus, exportTasksToCSV
+- [x] Create `index.ts` barrel export
+- [x] Update imports in `src/index.ts`
+- [x] Update imports in `src/index.test.ts`
+- [x] Run `npm run build` - verified
+- [x] Run `npm test` - 28 tests passed
+- [x] Delete original `src/utils.ts`
+
+---
+
 ## Documentation Update (2025-12-23)
 - [x] Add JSDoc documentation to `src/constants.ts`
 - [x] Add JSDoc documentation to `src/types.ts` interfaces  

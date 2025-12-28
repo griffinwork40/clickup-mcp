@@ -2,7 +2,30 @@
 
 Tracks release prep and publishing for `@griffinwork40/clickup-mcp-server`.
 
-## Current Session (2025-12-23)
+## Current Session (2025-12-28)
+- Focus: Refactor src/utils.ts into smaller modular files
+- Status: 100% complete
+
+### Completed Tasks
+- [x] Refactored monolithic `src/utils.ts` (1356 lines) into modular structure
+- [x] Created `src/utils/` directory with 8 specialized modules:
+  - `api-helpers.ts` (147 lines) - API token, requests, error handling
+  - `time-formatters.ts` (73 lines) - Date/time formatting
+  - `comment-formatters.ts` (36 lines) - Comment markdown formatting
+  - `custom-field-formatters.ts` (295 lines) - Phone normalization, CSV utilities
+  - `task-formatters.ts` (261 lines) - Task/list/space/folder formatters
+  - `response-utils.ts` (175 lines) - Response truncation, task filtering
+  - `task-operations.ts` (215 lines) - Task counting, CSV export
+  - `index.ts` (51 lines) - Barrel export for backward compatibility
+- [x] All modules under 300 lines as requested
+- [x] Updated imports in `src/index.ts` and `src/index.test.ts`
+- [x] Verified `npm run build` passes
+- [x] Verified `npm test` passes (28 tests)
+- [x] Deleted original `src/utils.ts`
+
+---
+
+## Previous Session (2025-12-23)
 - Focus: Add JSDoc documentation and update README
 - Status: 100% complete
 
