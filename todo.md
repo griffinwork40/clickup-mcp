@@ -14,6 +14,20 @@
 - [x] Create utils tests (`utils.test.ts`) - 49 tests
 - [x] Verify existing tests still pass (28 in index.test.ts)
 - [x] Run all tests - 265 tests passing
+## Refactor: Split Task Tools (2025-12-28)
+- [x] Create src/tools/tasks/ directory structure
+- [x] Extract get-tasks tool (193 lines)
+- [x] Extract get-task tool (74 lines)
+- [x] Extract create-task tool (101 lines)
+- [x] Extract update-task tool (105 lines)
+- [x] Extract delete-task tool (63 lines)
+- [x] Extract search-tasks tool (191 lines)
+- [x] Extract count-tasks tool (103 lines)
+- [x] Extract export-tasks tool (85 lines)
+- [x] Create shared schemas.ts (49 lines)
+- [x] Create index.ts barrel export (65 lines)
+- [x] Update src/index.ts to use new imports
+- [x] Verify build passes (all tests pass)
 
 ---
 
