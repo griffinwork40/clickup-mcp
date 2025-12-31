@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeAll } from '@jest/globals';
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { DEFAULT_LIMIT } from "./constants.js";
-import { normalizePhoneToE164, extractCustomFieldValue } from "./utils.js";
+import { normalizePhoneToE164, extractCustomFieldValue } from "./utils/index.js";
 import type { ClickUpCustomField } from "./types.js";
 
 // Mock environment variable
