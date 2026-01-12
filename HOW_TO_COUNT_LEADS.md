@@ -206,7 +206,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 
-const CLICKUP_API_TOKEN = process.env.CLICKUP_API_TOKEN || 'pk_111954600_2DJHUTAN8ZYRZBQC1K60ONEXW9SJ3C6X';
+const CLICKUP_API_TOKEN = process.env.CLICKUP_API_TOKEN;
 const LIST_ID = '901308085746'; // Atlas Free Website Lead Board
 const TARGET_STATUS = '#1 - phone call';
 const API_BASE_URL = 'https://api.clickup.com/api/v2';
