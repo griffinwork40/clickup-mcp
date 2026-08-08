@@ -1,5 +1,19 @@
 # TODO
 
+## Test Coverage Expansion (2025-12-28)
+- [x] Create `src/tools/__tests__/` directory structure
+- [x] Create shared mocks file (`mocks.ts`)
+- [x] Create teams tests (`teams.test.ts`) - 14 tests
+- [x] Create spaces tests (`spaces.test.ts`) - 16 tests
+- [x] Create folders tests (`folders.test.ts`) - 17 tests
+- [x] Create lists tests (`lists.test.ts`) - 22 tests
+- [x] Create tasks tests (`tasks.test.ts`) - 47 tests
+- [x] Create comments tests (`comments.test.ts`) - 21 tests
+- [x] Create custom-fields tests (`custom-fields.test.ts`) - 26 tests
+- [x] Create time-tracking tests (`time-tracking.test.ts`) - 25 tests
+- [x] Create utils tests (`utils.test.ts`) - 49 tests
+- [x] Verify existing tests still pass (28 in index.test.ts)
+- [x] Run all tests - 265 tests passing
 ## Refactor: Split Task Tools (2025-12-28)
 - [x] Create src/tools/tasks/ directory structure
 - [x] Extract get-tasks tool (193 lines)
